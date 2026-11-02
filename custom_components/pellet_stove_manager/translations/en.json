@@ -1,0 +1,100 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Pellet stove (Duepi EVO)",
+        "description": "Mirror mode reads the Homey Pellet Stove Manager app through homeyHASS without connecting to the stove (comparison). Other modes connect to the stove: one client at a time (stop the Homey app first).",
+        "data": {
+          "name": "Name",
+          "mode": "Mode"
+        }
+      },
+      "mirror": {
+        "title": "Mirror mode",
+        "data": {
+          "mirror_prefix": "Prefix of the stove's homeyHASS entities"
+        }
+      },
+      "connection": {
+        "title": "Stove connection",
+        "description": "Read-only: no command is sent to the stove.",
+        "data": {
+          "device_code": "Device code (WiFi module box, as in myDPRemote)",
+          "host": "Serial bridge address",
+          "port": "Port"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "No reply from the stove",
+      "mirror_not_found": "No homeyHASS stove entities with this prefix"
+    },
+    "abort": {
+      "already_configured": "This stove is already configured"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "poll_interval": "Polling interval (s)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "stove_status": {
+        "name": "Status",
+        "state": {
+          "off": "Off",
+          "ignition": "Ignition",
+          "heating": "Heating",
+          "cleaning": "Cleaning",
+          "eco": "Eco",
+          "cooling": "Cooling",
+          "alarm": "Alarm",
+          "unknown": "Unknown"
+        }
+      },
+      "stove_error": {
+        "name": "Alarm message"
+      },
+      "power_level": {
+        "name": "Power level"
+      },
+      "flue_gas_temperature": {
+        "name": "Flue gas temperature"
+      },
+      "board_temperature": {
+        "name": "Board temperature"
+      },
+      "ambient_temperature": {
+        "name": "Ambient probe"
+      },
+      "auger_speed": {
+        "name": "Auger"
+      },
+      "exhaust_speed": {
+        "name": "Exhaust fan"
+      },
+      "hours_total": {
+        "name": "Burn hours"
+      },
+      "hours_service": {
+        "name": "Hours since service"
+      }
+    },
+    "binary_sensor": {
+      "heating": {
+        "name": "Heating"
+      },
+      "alarm": {
+        "name": "Alarm"
+      },
+      "connection": {
+        "name": "Connection"
+      }
+    }
+  }
+}

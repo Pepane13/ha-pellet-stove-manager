@@ -1,0 +1,100 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Poêle à granulés (Duepi EVO)",
+        "description": "Mode « miroir » : lit l'app Homey Pellet Stove Manager via homeyHASS, sans se connecter au poêle (comparaison). Les autres modes se connectent au poêle : un seul client à la fois (arrêter l'app Homey avant).",
+        "data": {
+          "name": "Nom",
+          "mode": "Mode"
+        }
+      },
+      "mirror": {
+        "title": "Mode miroir",
+        "data": {
+          "mirror_prefix": "Préfixe des entités homeyHASS du poêle"
+        }
+      },
+      "connection": {
+        "title": "Connexion au poêle",
+        "description": "Lecture seule : aucune commande n'est envoyée au poêle.",
+        "data": {
+          "device_code": "Code de l'appareil (boîte du module Wi-Fi, comme myDPRemote)",
+          "host": "Adresse du pont série",
+          "port": "Port"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Pas de réponse du poêle",
+      "mirror_not_found": "Entités homeyHASS du poêle introuvables avec ce préfixe"
+    },
+    "abort": {
+      "already_configured": "Ce poêle est déjà configuré"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "poll_interval": "Intervalle de lecture (s)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "stove_status": {
+        "name": "État",
+        "state": {
+          "off": "Éteint",
+          "ignition": "Allumage",
+          "heating": "En chauffe",
+          "cleaning": "Nettoyage",
+          "eco": "Éco",
+          "cooling": "Refroidissement",
+          "alarm": "Alarme",
+          "unknown": "Inconnu"
+        }
+      },
+      "stove_error": {
+        "name": "Alarme"
+      },
+      "power_level": {
+        "name": "Puissance"
+      },
+      "flue_gas_temperature": {
+        "name": "Température des fumées"
+      },
+      "board_temperature": {
+        "name": "Température de la carte"
+      },
+      "ambient_temperature": {
+        "name": "Sonde d'ambiance"
+      },
+      "auger_speed": {
+        "name": "Vis sans fin"
+      },
+      "exhaust_speed": {
+        "name": "Extracteur"
+      },
+      "hours_total": {
+        "name": "Heures de fonctionnement"
+      },
+      "hours_service": {
+        "name": "Heures depuis l'entretien"
+      }
+    },
+    "binary_sensor": {
+      "heating": {
+        "name": "En chauffe"
+      },
+      "alarm": {
+        "name": "Alarme"
+      },
+      "connection": {
+        "name": "Connexion"
+      }
+    }
+  }
+}
