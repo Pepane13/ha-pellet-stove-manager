@@ -4,6 +4,7 @@ device's Flow triggers."""
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import timedelta
 from typing import Any
@@ -147,10 +148,16 @@ class StoveCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             state = await self.client.snapshot()
         except DesyncError as err:
             _LOGGER.debug("%s", err)
-            self._recheck()
             if self.data:
+                self._recheck()
                 return self.data
-            raise UpdateFailed(str(err)) from err
+            # first reading (start-up, reload): stray frames from the previous session are common,
+            # read again once before giving up
+            await asyncio.sleep(3)
+            try:
+                state = await self.client.snapshot()
+            except Exception as err2:  # noqa: BLE001
+                raise UpdateFailed(str(err2)) from err2
         except Exception as err:  # noqa: BLE001
             self.failures += 1
             _LOGGER.debug("Snapshot failed (%s): %s", self.failures, err)

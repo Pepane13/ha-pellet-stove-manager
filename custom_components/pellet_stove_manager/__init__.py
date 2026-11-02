@@ -90,7 +90,12 @@ async def _register_services(hass: HomeAssistant) -> None:
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     coordinator = StoveCoordinator(hass, entry)
-    await coordinator.async_start()
+    try:
+        await coordinator.async_start()
+    except Exception:
+        # setup will be retried by Home Assistant: release the relay session, timers and listeners
+        await coordinator.async_stop()
+        raise
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     await _register_services(hass)

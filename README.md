@@ -3,7 +3,7 @@
 Port of the Homey app **Pellet Stove Manager** (`com.pepane13.pelletstove` 0.9.4) to Home Assistant,
 for pellet stoves driven by a **Duepi EVO** board (Interstoves and other brands using myDPRemote).
 
-## Status: 0.3.2 (pellets, cleaning, maintenance, alarms)
+## Status: 0.3.3 (pellets, cleaning, maintenance, alarms)
 
 The external thermostat (Netatmo) drives the stove; the direct link brings the technical data, the
 burn time, the alarms, the alarm reset and the power level.
