@@ -77,6 +77,13 @@ SENSORS: tuple[StoveSensorDescription, ...] = (
         value=_get("exhaust"),
     ),
     StoveSensorDescription(
+        key="pressure_switch",
+        device_class=SensorDeviceClass.ENUM,
+        options=["normal", "pressure"],
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value=lambda d: d.get("pressure_switch") if d.get("pressure_switch") in ("normal", "pressure") else None,
+    ),
+    StoveSensorDescription(
         key="hours_total",
         device_class=SensorDeviceClass.DURATION,
         native_unit_of_measurement=UnitOfTime.HOURS,

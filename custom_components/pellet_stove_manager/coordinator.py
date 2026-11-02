@@ -11,6 +11,7 @@ from typing import Any
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import Event, HomeAssistant, callback
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.event import async_call_later, async_track_state_change_event
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
@@ -34,7 +35,7 @@ from .const import (
     UNAVAILABLE_AFTER,
 )
 from .duepi.client import DesyncError, DuepiClient
-from .duepi.protocol import ERRORS, StoveError
+from .duepi.protocol import ERRORS, StoveError, is_ack
 from .duepi.simulator import SimulatedStove
 from .duepi.transport import DuepiTransport
 
@@ -100,6 +101,10 @@ class StoveCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._last_error: StoveError | None = None
         self._candidate_error: StoveError | None = None
         self._unsub: list = []
+        #: set by the « Commands allowed » switch (restored, off by default)
+        self.commands_enabled = False
+        #: power level used by « Start » when the stove is off
+        self.requested_power: int | None = None
 
     # ------------------------------------------------------------------ lifecycle
     async def async_start(self) -> None:
@@ -212,6 +217,46 @@ class StoveCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._fire("stove_status_changed", {"status": status, "previous": self._last_status})
         self._last_status = status
         return {**s, "status": status, "error": error, "alarm": alarm}
+
+    # ------------------------------------------------------------------ commands
+    @property
+    def can_command(self) -> bool:
+        """Commands need a direct link to the stove (cloud, local or simulator)."""
+        return self.client is not None
+
+    async def async_command(self, name: str, *args: Any, label: str) -> str:
+        """Send one write command, guarded by the « Commands allowed » switch.
+
+        Every command is logged (logbook + `stove_command` event) with its reply, then the
+        stove is read again a few seconds later so the dashboard shows the real result.
+        """
+        if not self.can_command:
+            raise HomeAssistantError("Commands need a direct link to the stove (cloud or local mode)")
+        if not self.commands_enabled:
+            raise HomeAssistantError("Stove commands are disabled: turn on « Commands allowed » first")
+        assert self.client is not None
+        try:
+            reply = await self.client.write(name, *args)
+        except ValueError as err:
+            raise HomeAssistantError(f"Invalid command {label}: {err}") from err
+        except Exception as err:  # noqa: BLE001
+            self._fire("stove_command", {"command": name, "args": list(args), "label": label, "ack": False, "error": str(err)})
+            await self._logbook(f"commande « {label} » non envoyée : {err}")
+            raise HomeAssistantError(f"Command {label} failed: {err}") from err
+        ack = is_ack(reply)
+        _LOGGER.info("Command %s %s -> %s (ack=%s)", name, args, reply, ack)
+        self._fire("stove_command", {"command": name, "args": list(args), "label": label, "reply": reply, "ack": ack})
+        await self._logbook(f"commande « {label} » envoyée au poêle, " + ("acquittée" if ack else f"réponse inattendue {reply}"))
+        self._recheck()
+        if not ack:
+            raise HomeAssistantError(f"Command {label}: unexpected reply {reply}")
+        return reply
+
+    async def _logbook(self, message: str) -> None:
+        if self.hass.services.has_service("logbook", "log"):
+            await self.hass.services.async_call(
+                "logbook", "log", {"name": self.entry.title, "message": message, "domain": DOMAIN}, blocking=False
+            )
 
     def _recheck(self) -> None:
         async_call_later(self.hass, RECHECK_DELAY, lambda _now: self.hass.async_create_task(self.async_request_refresh()))

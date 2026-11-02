@@ -17,7 +17,7 @@
       },
       "connection": {
         "title": "Stove connection",
-        "description": "Read-only: no command is sent to the stove.",
+        "description": "Reads the stove. Commands stay disabled until the « Commands allowed » switch is turned on.",
         "data": {
           "device_code": "Device code (WiFi module box, as in myDPRemote)",
           "host": "Serial bridge address",
@@ -83,6 +83,13 @@
       },
       "hours_service": {
         "name": "Hours since service"
+      },
+      "pressure_switch": {
+        "name": "Pressure switch",
+        "state": {
+          "normal": "Normal",
+          "pressure": "Pressure"
+        }
       }
     },
     "binary_sensor": {
@@ -94,6 +101,30 @@
       },
       "connection": {
         "name": "Connection"
+      }
+    },
+    "switch": {
+      "commands_allowed": {
+        "name": "Commands allowed"
+      }
+    },
+    "button": {
+      "start": {
+        "name": "Start"
+      },
+      "stop": {
+        "name": "Stop"
+      },
+      "reset_alarm": {
+        "name": "Reset alarm"
+      }
+    },
+    "number": {
+      "power": {
+        "name": "Power"
+      },
+      "setpoint": {
+        "name": "Setpoint"
       }
     }
   }

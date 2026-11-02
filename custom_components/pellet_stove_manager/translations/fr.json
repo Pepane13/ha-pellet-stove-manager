@@ -17,7 +17,7 @@
       },
       "connection": {
         "title": "Connexion au poêle",
-        "description": "Lecture seule : aucune commande n'est envoyée au poêle.",
+        "description": "Lecture du poêle. Les commandes restent bloquées tant que l'interrupteur « Commandes autorisées » est coupé.",
         "data": {
           "device_code": "Code de l'appareil (boîte du module Wi-Fi, comme myDPRemote)",
           "host": "Adresse du pont série",
@@ -83,6 +83,13 @@
       },
       "hours_service": {
         "name": "Heures depuis l'entretien"
+      },
+      "pressure_switch": {
+        "name": "Pressostat",
+        "state": {
+          "normal": "Normal",
+          "pressure": "Dépression"
+        }
       }
     },
     "binary_sensor": {
@@ -94,6 +101,30 @@
       },
       "connection": {
         "name": "Connexion"
+      }
+    },
+    "switch": {
+      "commands_allowed": {
+        "name": "Commandes autorisées"
+      }
+    },
+    "button": {
+      "start": {
+        "name": "Allumer"
+      },
+      "stop": {
+        "name": "Arrêter"
+      },
+      "reset_alarm": {
+        "name": "Acquitter l'alarme"
+      }
+    },
+    "number": {
+      "power": {
+        "name": "Puissance demandée"
+      },
+      "setpoint": {
+        "name": "Consigne"
       }
     }
   }
