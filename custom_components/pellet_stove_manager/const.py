@@ -28,3 +28,14 @@ RECHECK_DELAY = 5  # seconds, second reading after an odd snapshot
 
 HEATING_STATES = ("ignition", "heating", "eco")
 STATUS_OPTIONS = ("off", "ignition", "heating", "cleaning", "eco", "cooling", "alarm", "unknown")
+
+# consumables and notifications (options)
+CONF_OUTDOOR = "outdoor_entity"
+CONF_HOUSE_OPEN = "house_open_entity"
+CONF_NOTIFY = "notify_targets"
+CONF_TANK_KG = "tank_kg"
+CONF_BAG_KG = "bag_kg"
+CONF_BAG_PRICE = "bag_price"
+CONF_CLEANING_DEFAULT_H = "cleaning_default_hours"
+CONF_CLEANING_REFILLS = "cleaning_refills"
+BURNING_STATES = ("ignition", "heating", "eco")

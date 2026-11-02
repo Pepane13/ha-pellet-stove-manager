@@ -37,7 +37,15 @@
     "step": {
       "init": {
         "data": {
-          "poll_interval": "Polling interval (s)"
+          "poll_interval": "Polling interval (s)",
+          "outdoor_entity": "Outdoor temperature sensor (daily need)",
+          "house_open_entity": "« House opened » entity (notifications held while closed, morning/evening checks)",
+          "notify_targets": "Notify services, comma separated (e.g. mobile_app_iphone_pro_sre)",
+          "tank_kg": "Tank capacity (kg)",
+          "bag_kg": "Bag (kg)",
+          "bag_price": "Bag price (€)",
+          "cleaning_refills": "Cleaning after this many tanks",
+          "cleaning_default_hours": "Cleaning threshold until refills are known (h)"
         }
       }
     }
@@ -87,6 +95,48 @@
           "normal": "Normal",
           "pressure": "Pressure"
         }
+      },
+      "pellets_left": {
+        "name": "Pellets left"
+      },
+      "pellets_percent": {
+        "name": "Tank level"
+      },
+      "pellets_empty_at": {
+        "name": "Tank empty at"
+      },
+      "pellets_autonomy": {
+        "name": "Autonomy at current power"
+      },
+      "pellets_month_kg": {
+        "name": "Pellets this month"
+      },
+      "pellets_month_cost": {
+        "name": "Pellet cost this month"
+      },
+      "pellets_month_forecast": {
+        "name": "Pellets forecast this month"
+      },
+      "cleaning_hours": {
+        "name": "Burning hours since cleaning"
+      },
+      "cleaning_threshold": {
+        "name": "Cleaning threshold"
+      },
+      "maintenance_next": {
+        "name": "Next maintenance"
+      },
+      "maintenance_hours_left": {
+        "name": "Hours before maintenance"
+      },
+      "burn_today": {
+        "name": "Burning time today"
+      },
+      "burn_month": {
+        "name": "Burning time this month"
+      },
+      "ignitions_today": {
+        "name": "Ignitions today"
       }
     },
     "binary_sensor": {
@@ -106,11 +156,14 @@
       }
     },
     "button": {
-      "start": {
-        "name": "Start"
+      "refilled": {
+        "name": "Tank refilled"
       },
-      "stop": {
-        "name": "Stop"
+      "cleaned": {
+        "name": "Cleaning done"
+      },
+      "serviced": {
+        "name": "Maintenance done"
       },
       "reset_alarm": {
         "name": "Reset alarm"

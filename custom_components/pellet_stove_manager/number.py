@@ -1,4 +1,4 @@
-"""Stove number: requested power level (the setpoint stays with the external thermostat)."""
+"""Stove number: power level, sent only while the stove burns (Netatmo drives start and stop)."""
 
 from __future__ import annotations
 
@@ -18,17 +18,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, add: AddEnt
         add([PowerNumber(coordinator)])
 
 
-class _CommandNumber(StoveEntity, NumberEntity):
-    _attr_mode = NumberMode.BOX
-
-    @property
-    def available(self) -> bool:
-        return super().available and self.coordinator.connected and self.coordinator.commands_enabled
-
-
-class PowerNumber(_CommandNumber):
-    """Sends the level while the stove burns; when it is off, keeps it for the next « Start »."""
-
+class PowerNumber(StoveEntity, NumberEntity):
     _attr_icon = "mdi:speedometer"
     _attr_native_min_value = 1
     _attr_native_max_value = 5
@@ -39,16 +29,14 @@ class PowerNumber(_CommandNumber):
         super().__init__(coordinator, "power")
 
     @property
+    def available(self) -> bool:
+        d = self.coordinator.data or {}
+        return (super().available and self.coordinator.connected and self.coordinator.commands_enabled
+                and d.get("status") in HEATING_STATES)
+
+    @property
     def native_value(self) -> float | None:
-        data = self.coordinator.data or {}
-        if data.get("status") in HEATING_STATES and data.get("power_level"):
-            return data["power_level"]
-        return self.coordinator.requested_power or data.get("power_level")
+        return (self.coordinator.data or {}).get("power_level")
 
     async def async_set_native_value(self, value: float) -> None:
-        level = int(value)
-        self.coordinator.requested_power = level
-        if (self.coordinator.data or {}).get("status") in HEATING_STATES:
-            await self.coordinator.async_command("power", level, label=f"Puissance {level}")
-        else:
-            self.async_write_ha_state()
+        await self.coordinator.async_set_power(int(value))

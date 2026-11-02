@@ -1,68 +1,75 @@
-"""Stove buttons: start, stop, alarm reset."""
+"""Stove buttons: refill, cleaning and maintenance records, alarm reset.
+
+Start and stop are not exposed: the Netatmo thermostat drives the stove (owner's decision, 02/11/2026).
+"""
 
 from __future__ import annotations
 
 from homeassistant.components.button import ButtonEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN
 from .coordinator import StoveCoordinator
 from .entity import StoveEntity
 
-DEFAULT_START_POWER = 3
-
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, add: AddEntitiesCallback) -> None:
     coordinator: StoveCoordinator = hass.data[DOMAIN][entry.entry_id]
     if coordinator.can_command:
-        add([StartButton(coordinator), StopButton(coordinator), ResetAlarmButton(coordinator)])
+        add([RefilledButton(coordinator), CleanedButton(coordinator), ServicedButton(coordinator),
+             ResetAlarmButton(coordinator)])
 
 
-class _CommandButton(StoveEntity, ButtonEntity):
+class _RecordButton(StoveEntity, ButtonEntity):
     @property
     def available(self) -> bool:
-        return super().available and self.coordinator.connected and self.coordinator.commands_enabled
-
-    def _status(self) -> str | None:
-        return (self.coordinator.data or {}).get("status")
+        return self.coordinator.manager is not None
 
 
-class StartButton(_CommandButton):
-    _attr_icon = "mdi:fire"
+class RefilledButton(_RecordButton):
+    _attr_icon = "mdi:sack"
 
     def __init__(self, coordinator: StoveCoordinator) -> None:
-        super().__init__(coordinator, "start")
+        super().__init__(coordinator, "refilled")
 
     async def async_press(self) -> None:
-        status = self._status()
-        if status != "off":
-            raise HomeAssistantError(f"Start refused: the stove is {status}, not off")
-        data = self.coordinator.data or {}
-        level = self.coordinator.requested_power or data.get("power_level") or DEFAULT_START_POWER
-        level = min(5, max(1, int(level)))
-        await self.coordinator.async_command("power", level, label=f"Allumer (puissance {level})")
+        self.coordinator.manager.refilled(source="bouton")
 
 
-class StopButton(_CommandButton):
-    _attr_icon = "mdi:fire-off"
+class CleanedButton(_RecordButton):
+    _attr_icon = "mdi:broom"
 
     def __init__(self, coordinator: StoveCoordinator) -> None:
-        super().__init__(coordinator, "stop")
+        super().__init__(coordinator, "cleaned")
 
     async def async_press(self) -> None:
-        if self._status() == "off":
-            raise HomeAssistantError("Stop refused: the stove is already off")
-        await self.coordinator.async_command("power", 0, label="Arrêter")
+        self.coordinator.manager.cleaned(source="bouton")
 
 
-class ResetAlarmButton(_CommandButton):
+class ServicedButton(_RecordButton):
+    _attr_icon = "mdi:wrench-check"
+    _attr_entity_registry_enabled_default = True
+
+    def __init__(self, coordinator: StoveCoordinator) -> None:
+        super().__init__(coordinator, "serviced")
+
+    async def async_press(self) -> None:
+        self.coordinator.manager.serviced()
+
+
+class ResetAlarmButton(StoveEntity, ButtonEntity):
+    """Available only when the alarm may be reset remotely (see alarms.py)."""
+
     _attr_icon = "mdi:alarm-light-off"
 
     def __init__(self, coordinator: StoveCoordinator) -> None:
         super().__init__(coordinator, "reset_alarm")
 
+    @property
+    def available(self) -> bool:
+        return super().available and self.coordinator.connected and self.coordinator.reset_refusal() is None
+
     async def async_press(self) -> None:
-        await self.coordinator.async_command("reset_alarm", label="Acquitter l'alarme")
+        await self.coordinator.async_reset_alarm(source="bouton")

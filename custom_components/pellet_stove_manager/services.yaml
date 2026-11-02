@@ -1,0 +1,66 @@
+refilled:
+  fields:
+    entry_id:
+      selector:
+        config_entry:
+          integration: pellet_stove_manager
+    remaining_percent:
+      selector:
+        number: {min: 0, max: 100, unit_of_measurement: "%"}
+set_pellet_level:
+  fields:
+    entry_id:
+      selector:
+        config_entry:
+          integration: pellet_stove_manager
+    percent:
+      required: true
+      selector:
+        number: {min: 0, max: 100, unit_of_measurement: "%"}
+cleaned:
+  fields:
+    entry_id:
+      selector:
+        config_entry:
+          integration: pellet_stove_manager
+serviced:
+  fields:
+    entry_id:
+      selector:
+        config_entry:
+          integration: pellet_stove_manager
+    note:
+      selector:
+        text:
+    cost:
+      selector:
+        number: {min: 0, max: 10000, unit_of_measurement: "EUR"}
+import_homey:
+  fields:
+    entry_id:
+      selector:
+        config_entry:
+          integration: pellet_stove_manager
+    consumables:
+      required: true
+      selector:
+        object:
+    extra_burn_hours:
+      selector:
+        number: {min: 0, max: 100, step: 0.01, unit_of_measurement: "h"}
+    extra_power:
+      selector:
+        number: {min: 1, max: 5}
+add_burn:
+  fields:
+    entry_id:
+      selector:
+        config_entry:
+          integration: pellet_stove_manager
+    hours:
+      required: true
+      selector:
+        number: {min: 0, max: 100, step: 0.01, unit_of_measurement: "h"}
+    power:
+      selector:
+        number: {min: 1, max: 5}

@@ -31,9 +31,12 @@ from .const import (
     MODE_LOCAL,
     MODE_MIRROR,
     MODE_SIMULATOR,
+    BURNING_STATES,
+    HEATING_STATES,
     RECHECK_DELAY,
     UNAVAILABLE_AFTER,
 )
+from .alarms import advice_for
 from .duepi.client import DesyncError, DuepiClient
 from .duepi.protocol import ERRORS, StoveError, is_ack
 from .duepi.simulator import SimulatedStove
@@ -104,19 +107,27 @@ class StoveCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._last_error: StoveError | None = None
         self._candidate_error: StoveError | None = None
         self._unsub: list = []
-        #: set by the « Commands allowed » switch (restored, off by default)
+        #: set by the « Commands allowed » switch (restored, off by default); guards the power command
         self.commands_enabled = False
-        #: power level used by « Start » when the stove is off
-        self.requested_power: int | None = None
+        self.options = opts
+        self.manager = None  # ConsumablesManager, created in async_start for connected modes
+        self._alarm_reset_at: dict[int, float] = {}
 
     # ------------------------------------------------------------------ lifecycle
     async def async_start(self) -> None:
+        if self.client is not None:
+            from .manager import ConsumablesManager
+
+            self.manager = ConsumablesManager(self.hass, self, self.options)
+            await self.manager.async_start()
         if self.mode == MODE_MIRROR:
             ids = [t.format(p=self.prefix) for t in MIRROR.values()]
             self._unsub.append(async_track_state_change_event(self.hass, ids, self._on_mirror_change))
         await self.async_config_entry_first_refresh()
 
     async def async_stop(self) -> None:
+        if self.manager is not None:
+            await self.manager.async_stop()
         for unsub in self._unsub:
             unsub()
         self._unsub.clear()
@@ -210,14 +221,23 @@ class StoveCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         status = "alarm" if alarm else s["status"]
         if self._last_error is not None and alarm != (self._last_error.code != 0):
             if alarm:
-                self._fire("stove_alarm_raised", {"code": error.code, "error": error.id, "message": error.fr})
+                adv = advice_for(error.code)
+                self._fire("stove_alarm_raised", {"code": error.code, "error": error.id, "message": error.fr,
+                                                  "advice": adv.advice, "resettable": adv.resettable})
+                if self.manager:
+                    self.manager.alarm_raised(error.code, error.fr, error.severity)
             else:
                 self._fire("stove_alarm_cleared", {})
+                if self.manager:
+                    self.manager.alarm_cleared()
         self._last_error = error
         if self._last_status is not None and status != self._last_status:
             self._fire("stove_status_changed", {"status": status, "previous": self._last_status})
         self._last_status = status
-        return {**s, "status": status, "error": error, "alarm": alarm}
+        data = {**s, "phase": s["status"], "status": status, "error": error, "alarm": alarm}
+        if self.manager and not mirror:
+            self.manager.observe(data)
+        return data
 
     # ------------------------------------------------------------------ commands
     @property
@@ -225,7 +245,43 @@ class StoveCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Commands need a direct link to the stove (cloud, local or simulator)."""
         return self.client is not None
 
-    async def async_command(self, name: str, *args: Any, label: str) -> str:
+    def reset_refusal(self) -> str | None:
+        """Why the alarm cannot be reset from Home Assistant right now (None = allowed)."""
+        d = self.data or {}
+        if not self.can_command:
+            return "pas de liaison directe avec le poêle"
+        if not d.get("alarm"):
+            return "aucune alarme active"
+        adv = advice_for(d["error"].code)
+        if not adv.resettable:
+            return "alarme grave : intervention sur place ou technicien, pas d'acquittement à distance"
+        if d.get("phase") in BURNING_STATES or d.get("phase") == "cooling":
+            return "attendre que le poêle soit éteint (refroidissement terminé)"
+        return None
+
+    async def async_reset_alarm(self, source: str = "bouton") -> str:
+        refusal = self.reset_refusal()
+        if refusal:
+            raise HomeAssistantError(f"Acquittement refusé : {refusal}")
+        code = self.data["error"].code
+        reply = await self.async_command("reset_alarm", label=f"Acquitter l'alarme {code} ({source})", guarded=False)
+        import time
+
+        last = self._alarm_reset_at.get(code)
+        self._alarm_reset_at[code] = time.time()
+        if last and time.time() - last < 24 * 3600 and self.manager:
+            self.manager._notify(f"Poêle : alarme {code} répétée",
+                                 "Deuxième acquittement en moins de 24 h : appeler le technicien.", [])
+        return reply
+
+    async def async_set_power(self, level: int) -> str:
+        if (self.data or {}).get("status") not in HEATING_STATES:
+            raise HomeAssistantError(
+                "Puissance envoyée seulement pendant la chauffe : sur un poêle éteint, la commande l'allumerait "
+                "(Netatmo pilote la marche). Le poêle garde son dernier niveau.")
+        return await self.async_command("power", level, label=f"Puissance {level}")
+
+    async def async_command(self, name: str, *args: Any, label: str, guarded: bool = True) -> str:
         """Send one write command, guarded by the « Commands allowed » switch.
 
         Every command is logged (logbook + `stove_command` event) with its reply, then the
@@ -235,7 +291,7 @@ class StoveCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             raise HomeAssistantError(f"Command {name} is not allowed (the setpoint belongs to the thermostat)")
         if not self.can_command:
             raise HomeAssistantError("Commands need a direct link to the stove (cloud or local mode)")
-        if not self.commands_enabled:
+        if guarded and not self.commands_enabled:
             raise HomeAssistantError("Stove commands are disabled: turn on « Commands allowed » first")
         assert self.client is not None
         try:

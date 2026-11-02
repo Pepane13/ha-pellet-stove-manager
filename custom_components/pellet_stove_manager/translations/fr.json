@@ -37,7 +37,15 @@
     "step": {
       "init": {
         "data": {
-          "poll_interval": "Intervalle de lecture (s)"
+          "poll_interval": "Intervalle de lecture (s)",
+          "outdoor_entity": "Sonde de température extérieure (besoin journalier)",
+          "house_open_entity": "Entité « Maison ouverte » (notifications retenues la nuit, contrôles du matin et du soir)",
+          "notify_targets": "Services de notification, séparés par des virgules (ex. mobile_app_iphone_pro_sre)",
+          "tank_kg": "Capacité du réservoir (kg)",
+          "bag_kg": "Sac (kg)",
+          "bag_price": "Prix du sac (€)",
+          "cleaning_refills": "Nettoyage après ce nombre de réservoirs",
+          "cleaning_default_hours": "Seuil de nettoyage tant que les recharges ne sont pas connues (h)"
         }
       }
     }
@@ -87,6 +95,48 @@
           "normal": "Normal",
           "pressure": "Dépression"
         }
+      },
+      "pellets_left": {
+        "name": "Granulés restants"
+      },
+      "pellets_percent": {
+        "name": "Niveau du réservoir"
+      },
+      "pellets_empty_at": {
+        "name": "Réservoir vide vers"
+      },
+      "pellets_autonomy": {
+        "name": "Autonomie à la puissance actuelle"
+      },
+      "pellets_month_kg": {
+        "name": "Granulés ce mois"
+      },
+      "pellets_month_cost": {
+        "name": "Coût des granulés ce mois"
+      },
+      "pellets_month_forecast": {
+        "name": "Prévision granulés du mois"
+      },
+      "cleaning_hours": {
+        "name": "Combustion depuis le nettoyage"
+      },
+      "cleaning_threshold": {
+        "name": "Seuil de nettoyage"
+      },
+      "maintenance_next": {
+        "name": "Prochain entretien"
+      },
+      "maintenance_hours_left": {
+        "name": "Heures avant entretien"
+      },
+      "burn_today": {
+        "name": "Temps de combustion aujourd'hui"
+      },
+      "burn_month": {
+        "name": "Temps de combustion ce mois"
+      },
+      "ignitions_today": {
+        "name": "Allumages aujourd'hui"
       }
     },
     "binary_sensor": {
@@ -106,11 +156,14 @@
       }
     },
     "button": {
-      "start": {
-        "name": "Allumer"
+      "refilled": {
+        "name": "Sac chargé"
       },
-      "stop": {
-        "name": "Arrêter"
+      "cleaned": {
+        "name": "Nettoyage fait"
+      },
+      "serviced": {
+        "name": "Entretien fait"
       },
       "reset_alarm": {
         "name": "Acquitter l'alarme"
@@ -118,7 +171,7 @@
     },
     "number": {
       "power": {
-        "name": "Puissance demandée"
+        "name": "Puissance"
       }
     }
   }

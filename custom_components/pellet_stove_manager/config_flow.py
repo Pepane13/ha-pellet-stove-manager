@@ -9,8 +9,17 @@ import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlow
 from homeassistant.core import callback
+from homeassistant.helpers import selector
 
 from .const import (
+    CONF_BAG_KG,
+    CONF_BAG_PRICE,
+    CONF_CLEANING_DEFAULT_H,
+    CONF_CLEANING_REFILLS,
+    CONF_HOUSE_OPEN,
+    CONF_NOTIFY,
+    CONF_OUTDOOR,
+    CONF_TANK_KG,
     CONF_CODE,
     CONF_HOST,
     CONF_MIRROR_PREFIX,
@@ -112,14 +121,25 @@ class PelletStoveOptionsFlow(OptionsFlow):
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         if user_input is not None:
             return self.async_create_entry(data=user_input)
-        current = {**self.config_entry.data, **self.config_entry.options}
-        return self.async_show_form(
-            step_id="init",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(CONF_POLL, default=current.get(CONF_POLL, DEFAULT_POLL)): vol.All(
-                        int, vol.Range(min=MIN_POLL, max=900)
-                    )
-                }
-            ),
-        )
+        cur = {**self.config_entry.data, **self.config_entry.options}
+
+        def opt(key: str, default: Any = None) -> Any:
+            value = cur.get(key, default)
+            return vol.Optional(key, description={"suggested_value": value}) if value not in (None, "") else vol.Optional(key)
+
+        schema: dict[Any, Any] = {
+            vol.Required(CONF_POLL, default=cur.get(CONF_POLL, DEFAULT_POLL)): vol.All(int, vol.Range(min=MIN_POLL, max=900)),
+        }
+        if cur.get(CONF_MODE) != MODE_MIRROR:
+            schema.update({
+                opt(CONF_OUTDOOR): selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor")),
+                opt(CONF_HOUSE_OPEN): selector.EntitySelector(
+                    selector.EntitySelectorConfig(domain=["switch", "input_boolean", "binary_sensor"])),
+                opt(CONF_NOTIFY): str,
+                vol.Optional(CONF_TANK_KG, default=cur.get(CONF_TANK_KG, 19.0)): vol.Coerce(float),
+                vol.Optional(CONF_BAG_KG, default=cur.get(CONF_BAG_KG, 15.0)): vol.Coerce(float),
+                vol.Optional(CONF_BAG_PRICE, default=cur.get(CONF_BAG_PRICE, 5.49)): vol.Coerce(float),
+                vol.Optional(CONF_CLEANING_REFILLS, default=cur.get(CONF_CLEANING_REFILLS, 3)): vol.Coerce(float),
+                vol.Optional(CONF_CLEANING_DEFAULT_H, default=cur.get(CONF_CLEANING_DEFAULT_H, 44.0)): vol.Coerce(float),
+            })
+        return self.async_show_form(step_id="init", data_schema=vol.Schema(schema))
