@@ -141,5 +141,7 @@ class PelletStoveOptionsFlow(OptionsFlow):
                 vol.Optional(CONF_BAG_PRICE, default=cur.get(CONF_BAG_PRICE, 5.49)): vol.Coerce(float),
                 vol.Optional(CONF_CLEANING_REFILLS, default=cur.get(CONF_CLEANING_REFILLS, 3)): vol.Coerce(float),
                 vol.Optional(CONF_CLEANING_DEFAULT_H, default=cur.get(CONF_CLEANING_DEFAULT_H, 44.0)): vol.Coerce(float),
+                vol.Optional("cleaning_slot_weekday", default=cur.get("cleaning_slot_weekday", "19:00")): selector.TimeSelector(),
+                vol.Optional("cleaning_slot_weekend", default=cur.get("cleaning_slot_weekend", "10:00")): selector.TimeSelector(),
             })
         return self.async_show_form(step_id="init", data_schema=vol.Schema(schema))

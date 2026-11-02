@@ -44,8 +44,10 @@
           "tank_kg": "Tank capacity (kg)",
           "bag_kg": "Bag (kg)",
           "bag_price": "Bag price (€)",
-          "cleaning_refills": "Cleaning after this many tanks",
-          "cleaning_default_hours": "Cleaning threshold until refills are known (h)"
+          "cleaning_refills": "Cleaning after this many tanks (0 = fixed threshold)",
+          "cleaning_default_hours": "Cleaning threshold (h): fixed, or until refills are known",
+          "cleaning_slot_weekday": "Cleaning reminders on weekdays from",
+          "cleaning_slot_weekend": "Cleaning reminders on weekends from"
         }
       }
     }

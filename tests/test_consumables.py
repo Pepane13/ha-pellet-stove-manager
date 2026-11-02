@@ -25,9 +25,14 @@ def test_integration_and_cleaning():
     burn(c, t(9), 60, power=1)
     assert round(c.kg_left(), 2) == round(10 - 0.95, 2)  # no ignition in this burn
     assert round(c.data["cleaning"]["hours"], 2) == 36.0
+    assert "cleaning_soon" not in [k for k, _ in c.take_events()]  # waits for the evening slot
+    c.tick(t(19, 5), outdoor=7)  # Monday 02/11 19:05
     assert "cleaning_soon" in [k for k, _ in c.take_events()]  # 36 h >= 0.8 x 44
-    burn(c, t(10), 9 * 60, power=1)
+    burn(c, t(19, 6), 9 * 60, power=1)
+    c.tick(t(19, 10, d=3), outdoor=7)
     assert "cleaning_due" in [k for k, _ in c.take_events()]
+    c.tick(t(20, 0, d=3), outdoor=7)
+    assert "cleaning_due" not in [k for k, _ in c.take_events()]  # once per day
     c.cleaned(t(16))
     assert c.cleaning_state()["hours"] == 0
 
@@ -121,3 +126,13 @@ def test_ignitions_cost_learnt_from_seen_level():
     e = c.refilled(t(10, d=4), remaining_percent=50)  # 9.5 kg really burnt
     assert e["ignitions"] == 10 and abs(e["ignition_kg"] - (9.5 - model) / 10) < 0.01
     assert c.ignition_kg() > 0.15 and c.data["pellets"]["factor"]["value"] == 1.0
+
+
+def test_fixed_cleaning_threshold_and_weekend_slot():
+    c = Consumables(None, {"cleaning_refills": 0, "cleaning_hours": 20}, t(8))
+    c.import_state(t(8), cleaning_hours=21)
+    assert c.cleaning_threshold() == 20
+    c.tick(t(9, 0, d=7), outdoor=7)  # Saturday 07/11 09:00: before the weekend slot
+    assert "cleaning_due" not in [k for k, _ in c.take_events()]
+    c.tick(t(10, 0, d=7), outdoor=7)
+    assert "cleaning_due" in [k for k, _ in c.take_events()]

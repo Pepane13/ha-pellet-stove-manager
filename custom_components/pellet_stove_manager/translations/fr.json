@@ -44,8 +44,10 @@
           "tank_kg": "Capacité du réservoir (kg)",
           "bag_kg": "Sac (kg)",
           "bag_price": "Prix du sac (€)",
-          "cleaning_refills": "Nettoyage après ce nombre de réservoirs",
-          "cleaning_default_hours": "Seuil de nettoyage tant que les recharges ne sont pas connues (h)"
+          "cleaning_refills": "Nettoyage après ce nombre de réservoirs (0 = seuil fixe)",
+          "cleaning_default_hours": "Seuil de nettoyage (h) : fixe, ou tant que les recharges ne sont pas connues",
+          "cleaning_slot_weekday": "Rappels de nettoyage en semaine à partir de",
+          "cleaning_slot_weekend": "Rappels de nettoyage le week-end à partir de"
         }
       }
     }

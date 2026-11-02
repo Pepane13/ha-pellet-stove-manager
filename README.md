@@ -3,7 +3,7 @@
 Port of the Homey app **Pellet Stove Manager** (`com.pepane13.pelletstove` 0.9.4) to Home Assistant,
 for pellet stoves driven by a **Duepi EVO** board (Interstoves and other brands using myDPRemote).
 
-## Status: 0.3.1 (pellets, cleaning, maintenance, alarms)
+## Status: 0.3.2 (pellets, cleaning, maintenance, alarms)
 
 The external thermostat (Netatmo) drives the stove; the direct link brings the technical data, the
 burn time, the alarms, the alarm reset and the power level.
@@ -19,8 +19,9 @@ burn time, the alarms, the alarm reset and the power level.
   (empty tank, level seen before refilling): short Netatmo cycles make ignitions ≈ 40 % of the burn time; level, autonomy, empty time, kg / €
   this month, month forecast. Refill advice at 21:00 (tank must last until 08:00), morning check when
   the house opens, reminder 45 min later, « tank low » held overnight, alert at closing time.
-- **Cleaning**: burning hours since the last cleaning; due after 3 tanks (3 × mean burning hours
-  between two refills; 44 h until two refills are known), pre-alert at 80 %.
+- **Cleaning**: burning hours since the last cleaning; fixed threshold (20 h for the owner) or
+  N × the mean burning hours of a tank; pre-alert at 80 %. Reminders only on weekday evenings (19:00)
+  or weekend mornings (10:00), every such slot while due.
 - **Maintenance**: journal (installation, services), due 12 months after the last service or at
   1,200 h, reminder 30 days / 100 h before.
 - **Burn time**: minutes per stove state per day and month, ignitions per day. The stove's own hour

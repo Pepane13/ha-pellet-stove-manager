@@ -39,3 +39,5 @@ CONF_BAG_PRICE = "bag_price"
 CONF_CLEANING_DEFAULT_H = "cleaning_default_hours"
 CONF_CLEANING_REFILLS = "cleaning_refills"
 BURNING_STATES = ("ignition", "heating", "eco")
+CONF_CLEANING_SLOT_WEEKDAY = "cleaning_slot_weekday"
+CONF_CLEANING_SLOT_WEEKEND = "cleaning_slot_weekend"

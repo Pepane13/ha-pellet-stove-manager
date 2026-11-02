@@ -17,8 +17,10 @@ without a refill; « tank low » held back overnight; at closing time (from 18:0
 will not last until the morning. Daily need from the outdoor temperature (owner's two seasons):
 heating hours/day = 15.06 − 0.809 T, kg per heating hour = 1.341 − 0.0282 T.
 
-Cleaning: burning hours since the last cleaning; due after ``cleaning_refills`` tanks (3 × the mean
-burning hours between two refills, owner's rule of 02/11/2026), pre-alert at 80 %.
+Cleaning: burning hours since the last cleaning; threshold fixed (``cleaning_refills`` = 0, 20 h since
+02/11/2026) or ``cleaning_refills`` × the mean burning hours of a tank; pre-alert at 80 %. Reminders
+are only given at a convenient time: weekday evenings (19:00) or weekend mornings (10:00), then every
+such slot while the cleaning is due.
 Maintenance: 12 months after the last service or 1,200 h of the stove's service counter.
 Burn time: minutes per stove state per day, ignitions per day.
 """
@@ -42,6 +44,8 @@ DEFAULTS: dict[str, Any] = {
     "cleaning_hours": 44.0,       # fallback threshold until two refills are known
     "cleaning_refills": 3,        # cleaning due after this many tanks (mean burning hours per tank)
     "cleaning_prealert": 0.8,
+    "cleaning_slot_weekday": "19:00",  # cleaning reminders on weekday evenings...
+    "cleaning_slot_weekend": "10:00",  # ...or on weekend mornings (owner's choice, 02/11/2026)
     "ignition_kg": 0.15,          # extra pellets loaded at each ignition (prior, learnt on refills)
     "service_months": 12,
     "service_hours": 1200,
@@ -268,7 +272,7 @@ class Consumables:
     def cleaned(self, now: datetime) -> None:
         c = self.data["cleaning"]
         c["journal"] = [{"at": now.timestamp(), "hours": _r(c["hours"], 2)}, *c.get("journal", [])][:50]
-        c.update(at=now.timestamp(), hours=0.0, notified=False, pre_notified=False)
+        c.update(at=now.timestamp(), hours=0.0, notified=False, pre_notified=False, reminded_day=None)
 
     def serviced(self, now: datetime, note: str = "", cost: float | None = None) -> None:
         m = self.data["maintenance"]
@@ -367,20 +371,31 @@ class Consumables:
 
     def cleaning_threshold(self) -> float:
         mean, n = self.tank_hours()
-        if mean is None or n < 2:
+        if self.cfg["cleaning_refills"] <= 0 or mean is None or n < 2:
             return float(self.cfg["cleaning_hours"])
         return round(mean * self.cfg["cleaning_refills"], 1)
 
     def _check_cleaning(self) -> None:
+        """Nothing is raised here: reminders wait for the next cleaning slot (see tick)."""
+
+    def _cleaning_slot(self, now: datetime) -> bool:
+        key = "cleaning_slot_weekend" if now.weekday() >= 5 else "cleaning_slot_weekday"
+        return now.hour * 60 + now.minute >= _hhmm(self.cfg[key])
+
+    def _cleaning_reminder(self, now: datetime) -> None:
         c = self.data["cleaning"]
         thr = self.cleaning_threshold()
-        if c["hours"] >= thr * self.cfg["cleaning_prealert"] and not c["pre_notified"]:
-            c["pre_notified"] = True
-            if c["hours"] < thr:
-                self._emit("cleaning_soon", hours=_r(c["hours"]), threshold=thr)
-        if c["hours"] >= thr and not c["notified"]:
+        day = now.date().isoformat()
+        if c.get("reminded_day") == day or not self._cleaning_slot(now):
+            return
+        if c["hours"] >= thr:
             c["notified"] = True
+            c["reminded_day"] = day
             self._emit("cleaning_due", hours=_r(c["hours"]), threshold=thr)
+        elif c["hours"] >= thr * self.cfg["cleaning_prealert"] and not c["pre_notified"]:
+            c["pre_notified"] = True
+            c["reminded_day"] = day
+            self._emit("cleaning_soon", hours=_r(c["hours"]), threshold=thr)
 
     def maintenance_state(self, now: datetime) -> dict[str, Any]:
         m = self.data["maintenance"]
@@ -436,6 +451,7 @@ class Consumables:
             self._emit("pellets_refill_advised", moment="reminder", **self._tokens())
         self._check_low(now)
         self._check_maintenance(now)
+        self._cleaning_reminder(now)
 
     def house_opened(self, now: datetime, outdoor: float | None) -> bool:
         d = self.data["daily"]

@@ -87,6 +87,9 @@ class ConsumablesManager:
                           (CONF_CLEANING_DEFAULT_H, "cleaning_hours"), (CONF_CLEANING_REFILLS, "cleaning_refills")):
             if o.get(key) not in (None, ""):
                 cfg[name] = float(o[key])
+        for key in ("cleaning_slot_weekday", "cleaning_slot_weekend"):
+            if o.get(key):
+                cfg[key] = str(o[key])[:5]
         return cfg
 
     async def async_start(self) -> None:
