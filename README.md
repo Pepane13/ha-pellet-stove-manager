@@ -3,7 +3,7 @@
 Port of the Homey app **Pellet Stove Manager** (`com.pepane13.pelletstove` 0.9.4) to Home Assistant,
 for pellet stoves driven by a **Duepi EVO** board (Interstoves and other brands using myDPRemote).
 
-## Status: 0.2.1 (driver + commands)
+## Status: 0.2.2 (driver + commands)
 
 - Duepi EVO protocol ported to Python: frame codec (plain and AES cloud frames), 12 reads, write
   commands (power / stop, alarm reset; setpoint supported by the library but not exposed).

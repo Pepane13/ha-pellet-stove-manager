@@ -262,7 +262,12 @@ class StoveCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             )
 
     def _recheck(self) -> None:
-        async_call_later(self.hass, RECHECK_DELAY, lambda _now: self.hass.async_create_task(self.async_request_refresh()))
+        async_call_later(self.hass, RECHECK_DELAY, self._recheck_now)
+
+    @callback
+    def _recheck_now(self, _now: Any) -> None:
+        # @callback: runs in the event loop (a plain lambda would run in a worker thread)
+        self.hass.async_create_task(self.async_request_refresh())
 
     def _fire(self, kind: str, data: dict[str, Any]) -> None:
         _LOGGER.info("Event %s %s", kind, data)
