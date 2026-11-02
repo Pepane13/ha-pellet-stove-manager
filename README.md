@@ -3,10 +3,10 @@
 Port of the Homey app **Pellet Stove Manager** (`com.pepane13.pelletstove` 0.9.4) to Home Assistant,
 for pellet stoves driven by a **Duepi EVO** board (Interstoves and other brands using myDPRemote).
 
-## Status: 0.2.0 (driver + commands)
+## Status: 0.2.1 (driver + commands)
 
 - Duepi EVO protocol ported to Python: frame codec (plain and AES cloud frames), 12 reads, write
-  commands (power, setpoint, alarm reset).
+  commands (power / stop, alarm reset; setpoint supported by the library but not exposed).
 - Connection modes:
   - **Mirror**: reads the Homey app through its homeyHASS entities, no connection to the stove
     (comparison phase while Homey is still master);
@@ -14,15 +14,16 @@ for pellet stoves driven by a **Duepi EVO** board (Interstoves and other brands 
     exponential back-off;
   - **Local serial bridge** (ESP-Link / ser2net);
   - **Simulator**.
-- Entities: status, alarm message, power level, flue gas / board / ambient temperatures, auger, exhaust,
+- Entities: status, alarm message, power level, flue gas / board temperatures, auger, exhaust,
   burn hours, hours since service, pressure switch; binary sensors heating, alarm, connection.
 - **Commands** (cloud, local and simulator modes only, never in mirror mode):
   - switch **Commands allowed** (off by default, restored after restart): master guard, every command
     is refused while it is off;
   - buttons **Start** (only when the stove is off, at the requested power, else the last level, else 3),
     **Stop** (power 0), **Reset alarm**;
-  - numbers **Power** 1–5 (sent while the stove burns, kept for the next start when it is off) and
-    **Setpoint** 5–35 °C.
+  - number **Power** 1–5 (sent while the stove burns, kept for the next start when it is off).
+  - No setpoint command and no ambient probe reading: the room temperature is left to the external
+    thermostat (Netatmo) and the stove's probe is not connected. The protocol library still supports both.
   - Each command is logged in the logbook and raises a `stove_command` event with the stove's reply
     (`ack`); the stove is read again 5 s later.
 - Events `pellet_stove_manager_event` (`stove_status_changed`, `stove_alarm_raised`, `stove_alarm_cleared`,

@@ -69,9 +69,6 @@
       "board_temperature": {
         "name": "Board temperature"
       },
-      "ambient_temperature": {
-        "name": "Ambient probe"
-      },
       "auger_speed": {
         "name": "Auger"
       },
@@ -122,9 +119,6 @@
     "number": {
       "power": {
         "name": "Power"
-      },
-      "setpoint": {
-        "name": "Setpoint"
       }
     }
   }

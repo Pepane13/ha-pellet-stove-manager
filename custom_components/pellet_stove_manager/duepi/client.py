@@ -9,6 +9,8 @@ from typing import Any, Protocol
 from .protocol import DECODERS, READ, WRITE
 
 # Order matters: status first; if it fails the snapshot is rejected.
+# The ambient probe (D1000) and the stove setpoint (C6000) are not read: on this installation the
+# probe is not connected and the room temperature is handled by an external thermostat (Netatmo).
 SNAPSHOT = (
     "status",
     "error",
@@ -17,8 +19,6 @@ SNAPSHOT = (
     "board",
     "auger",
     "exhaust",
-    "ambient",
-    "setpoint",
     "pressure_switch",
     "hours_total",
     "hours_service",

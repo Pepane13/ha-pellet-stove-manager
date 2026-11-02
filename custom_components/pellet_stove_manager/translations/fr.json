@@ -69,9 +69,6 @@
       "board_temperature": {
         "name": "Température de la carte"
       },
-      "ambient_temperature": {
-        "name": "Sonde d'ambiance"
-      },
       "auger_speed": {
         "name": "Vis sans fin"
       },
@@ -122,9 +119,6 @@
     "number": {
       "power": {
         "name": "Puissance demandée"
-      },
-      "setpoint": {
-        "name": "Consigne"
       }
     }
   }

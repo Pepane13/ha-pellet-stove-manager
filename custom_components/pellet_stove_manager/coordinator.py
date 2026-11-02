@@ -41,6 +41,9 @@ from .duepi.transport import DuepiTransport
 
 _LOGGER = logging.getLogger(__name__)
 
+#: commands exposed by the integration; the setpoint is left to the external thermostat
+ALLOWED_COMMANDS = ("power", "reset_alarm")
+
 NO_ERROR = StoveError(0, "none", "No error", "Aucune erreur", 0)
 
 # homeyHASS entity suffixes of the Homey stove device (mirror mode)
@@ -180,8 +183,6 @@ class StoveCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         for key in ("power_level", "flue_gas", "board", "auger", "exhaust", "hours_total", "hours_service"):
             value = num(key)
             state[key] = None if value is None else (int(value) if key.startswith(("power", "hours")) else value)
-        state["ambient"] = None
-        state["setpoint"] = None
         state["pressure_switch"] = None
         return state
 
@@ -230,6 +231,8 @@ class StoveCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         Every command is logged (logbook + `stove_command` event) with its reply, then the
         stove is read again a few seconds later so the dashboard shows the real result.
         """
+        if name not in ALLOWED_COMMANDS:
+            raise HomeAssistantError(f"Command {name} is not allowed (the setpoint belongs to the thermostat)")
         if not self.can_command:
             raise HomeAssistantError("Commands need a direct link to the stove (cloud or local mode)")
         if not self.commands_enabled:

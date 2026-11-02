@@ -56,14 +56,6 @@ SENSORS: tuple[StoveSensorDescription, ...] = (
         value=_get("board"),
     ),
     StoveSensorDescription(
-        key="ambient_temperature",
-        device_class=SensorDeviceClass.TEMPERATURE,
-        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
-        state_class=SensorStateClass.MEASUREMENT,
-        entity_registry_enabled_default=False,  # 99.9 °C = no probe (external thermostat)
-        value=_get("ambient"),
-    ),
-    StoveSensorDescription(
         key="auger_speed",
         state_class=SensorStateClass.MEASUREMENT,
         entity_category=EntityCategory.DIAGNOSTIC,

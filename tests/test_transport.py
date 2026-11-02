@@ -70,7 +70,7 @@ def test_cloud_logs_in_once_and_reads_snapshot():
             s2 = await c.snapshot()
             assert s1["status"] in ("off", "ignition", "heating", "cooling")
             assert s1["hours_total"] == 1735 and s1["hours_service"] == 12
-            assert s1["ambient"] is None and s1["missing"] == []
+            assert "ambient" not in s1 and "setpoint" not in s1 and s1["missing"] == []
             assert s2["hours_total"] == 1735
             assert seen["logins"] == [f"master:{CODE}#"]
             assert not any(x.startswith("F") or x == "D6000" for x in seen["commands"])

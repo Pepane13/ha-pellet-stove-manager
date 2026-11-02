@@ -47,9 +47,11 @@ async def test_commands_guarded_then_sent(hass):
     await hass.async_block_till_done()
     assert hass.states.get(stop).state != "unavailable"
 
-    setpoint = next(s.entity_id for s in hass.states.async_all("number") if "setpoint" in s.entity_id or "consigne" in s.entity_id)
-    await hass.services.async_call("number", "set_value", {"entity_id": setpoint, "value": 21}, blocking=True)
-    assert sim.writes[-1] == "F2150"
+    assert len(hass.states.async_all("number")) == 1  # power only, no setpoint
+    with pytest.raises(HomeAssistantError):
+        await coord.async_command("setpoint", 21, label="Consigne")
+    assert sim.writes == []
+    assert not any("ambient" in s.entity_id or "ambiance" in s.entity_id for s in hass.states.async_all("sensor"))
 
     coord.data["status"] = "heating"
     await hass.services.async_call("button", "press", {"entity_id": stop}, blocking=True)
