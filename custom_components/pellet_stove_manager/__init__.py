@@ -26,9 +26,12 @@ SCHEMAS = {
     "cleaned": vol.Schema({ENTRY: str}),
     "serviced": vol.Schema({ENTRY: str, vol.Optional("note", default=""): str, vol.Optional("cost"): vol.Coerce(float)}),
     "import_homey": vol.Schema({ENTRY: str, vol.Required("consumables"): vol.Any(dict, str),
+                                vol.Optional("full"): bool, vol.Optional("ignitions"): vol.Coerce(int),
                                 vol.Optional("extra_burn_hours", default=0): vol.Coerce(float),
+                                vol.Optional("extra_ignitions", default=0): vol.Coerce(int),
                                 vol.Optional("extra_power", default=2): vol.All(vol.Coerce(int), vol.Range(1, 5))}),
     "add_burn": vol.Schema({ENTRY: str, vol.Required("hours"): vol.Coerce(float),
+                            vol.Optional("ignitions", default=0): vol.Coerce(int),
                             vol.Optional("power", default=2): vol.All(vol.Coerce(int), vol.Range(1, 5))}),
 }
 
@@ -65,9 +68,9 @@ async def _register_services(hass: HomeAssistant) -> None:
         data = call.data["consumables"]
         if isinstance(data, str):
             data = json.loads(data)
-        result = m.c.import_homey(dt_util.now(), data)
-        if call.data["extra_burn_hours"]:
-            m.c.add_burn(call.data["extra_burn_hours"], call.data["extra_power"])
+        result = m.c.import_homey(dt_util.now(), data, call.data.get("full"), call.data.get("ignitions"))
+        if call.data["extra_burn_hours"] or call.data["extra_ignitions"]:
+            m.c.add_burn(call.data["extra_burn_hours"], call.data["extra_power"], call.data["extra_ignitions"])
         m._log(f"état repris de l'app Homey : {result}")
         m.update()
         return {**result, "kg_left_after_extra": round(m.c.kg_left(), 1),
@@ -75,7 +78,7 @@ async def _register_services(hass: HomeAssistant) -> None:
 
     async def add_burn(call: ServiceCall) -> None:
         m = _manager(hass, call)
-        m.c.add_burn(call.data["hours"], call.data["power"])
+        m.c.add_burn(call.data["hours"], call.data["power"], call.data["ignitions"])
         m.update()
 
     for name, handler in (("refilled", refilled), ("set_pellet_level", set_level), ("cleaned", cleaned),

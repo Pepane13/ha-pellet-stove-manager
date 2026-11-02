@@ -23,7 +23,7 @@ def test_integration_and_cleaning():
     c = Consumables(None, None, t(8))
     c.import_state(t(8), kg_left=10, cleaning_hours=35)
     burn(c, t(9), 60, power=1)
-    assert round(c.kg_left(), 2) == round(10 - 0.95, 2)
+    assert round(c.kg_left(), 2) == round(10 - 0.95, 2)  # no ignition in this burn
     assert round(c.data["cleaning"]["hours"], 2) == 36.0
     assert "cleaning_soon" in [k for k, _ in c.take_events()]  # 36 h >= 0.8 x 44
     burn(c, t(10), 9 * 60, power=1)
@@ -67,7 +67,7 @@ def test_low_held_overnight_released_on_opening():
 def test_empty_tank_learns_factor():
     c = Consumables(None, None, t(8))
     c.refilled(t(8))
-    burn(c, t(8), 10 * 60, power=2)  # model 12.95 kg
+    burn(c, t(8), 10 * 60, power=2)  # model 12.95 kg, no ignition: the factor is learnt
     c.observe(t(18, 1), "off", 2, 5, 1, 1)
     ev = dict(c.take_events())
     assert "pellets_empty" in ev and c.data["pellets"]["factor"]["value"] > 1
@@ -103,3 +103,21 @@ def test_import_homey():
     assert r["kg_left"] == 9.9 and r["factor"] == 1.08 and r["cleaning_hours"] == 6.8
     c.add_burn(0.5, power=2)
     assert round(c.kg_left(), 2) == round(9.9 - 0.5 * 1.295 * 1.08, 2)
+
+
+def test_ignitions_cost_learnt_from_seen_level():
+    c = Consumables(None, None, t(8))
+    c.refilled(t(6))
+    start = t(7)
+    for i in range(10):  # 10 short cycles: 9 min ignition, 10 min heating at P1, then off
+        s0 = start + timedelta(hours=i * 3)
+        c.observe(s0, "off", 1, 0, 1, 1)
+        burn(c, s0 + timedelta(minutes=1), 9, power=1, status="ignition")
+        burn(c, s0 + timedelta(minutes=11), 10, power=1, status="heating")
+        c.observe(s0 + timedelta(minutes=22), "off", 1, 0, 1, 1)
+    p = c.pellet_state(t(8, d=4), 7)
+    assert p["ignitions_since_refill"] == 10
+    model = c.data["pellets"]["model_kg"]
+    e = c.refilled(t(10, d=4), remaining_percent=50)  # 9.5 kg really burnt
+    assert e["ignitions"] == 10 and abs(e["ignition_kg"] - (9.5 - model) / 10) < 0.01
+    assert c.ignition_kg() > 0.15 and c.data["pellets"]["factor"]["value"] == 1.0

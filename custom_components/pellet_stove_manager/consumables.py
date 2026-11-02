@@ -5,8 +5,11 @@ stores ``data`` and turns the returned events into notifications.
 
 Pellets: the tank is full after « tank refilled ». Consumption is integrated while the stove burns
 (ignition, heating, eco) from the nominal rate of the power level (0.95 kg/h at 1 → 2.33 kg/h at 5,
-Interstoves Diego 9) times a correction factor. The factor is learnt only when the tank really ran
-empty (alarm 5) or, with half the weight, when the level seen before refilling is given.
+Interstoves Diego 9) times a correction factor, plus an extra load at each ignition (the auger fills
+the burn pot): with short Netatmo cycles (16 ignitions in two days on 1–2/11/2026) the rate alone
+under-estimated a tank by ≈ 40 %. When a real level is known (empty tank, alarm 5, or the level seen
+before refilling, half weight), the gap with the rate model is first explained by the ignitions
+(≥ 3 since the last full tank: kg per ignition learnt), otherwise by the factor.
 
 Refill advice: at the evening time (21:00) the tank must last until the morning (08:00); when the
 house is opened in the morning it must last until the evening; reminder 45 min after an advice
@@ -39,6 +42,7 @@ DEFAULTS: dict[str, Any] = {
     "cleaning_hours": 44.0,       # fallback threshold until two refills are known
     "cleaning_refills": 3,        # cleaning due after this many tanks (mean burning hours per tank)
     "cleaning_prealert": 0.8,
+    "ignition_kg": 0.15,          # extra pellets loaded at each ignition (prior, learnt on refills)
     "service_months": 12,
     "service_hours": 1200,
     "remind_days": 30,
@@ -100,8 +104,9 @@ def empty_data(now: datetime) -> dict[str, Any]:
     ts = now.timestamp()
     return {
         "version": 1,
-        "pellets": {"refill_at": ts, "kg_burned": 0.0, "model_kg": 0.0, "hours": 0.0, "full": False,
-                    "factor": {"value": 1.0, "n": 0.0}, "low_notified": False, "refills": [], "empties": []},
+        "pellets": {"refill_at": ts, "kg_burned": 0.0, "model_kg": 0.0, "hours": 0.0, "full": False, "ignitions": 0,
+                    "factor": {"value": 1.0, "n": 0.0}, "ignition_kg": {"value": None, "n": 0.0},
+                    "low_notified": False, "refills": [], "empties": []},
         "cleaning": {"at": ts, "hours": 0.0, "notified": False, "pre_notified": False, "journal": []},
         "maintenance": {"last_date": "2026-08-27", "last_hours_total": 1723, "notified_soon": False,
                         "notified_due": False, "journal": copy.deepcopy(SEED_JOURNAL)},
@@ -174,6 +179,12 @@ class Consumables:
                     self.data["months"][mk] = round(self.data["months"].get(mk, 0) + kg, 3)
             if status == "ignition" and last["status"] != "ignition":
                 burn["ignitions"] += 1
+                pel = self.data["pellets"]
+                pel["ignitions"] = pel.get("ignitions", 0) + 1
+                pel["kg_burned"] += self.ignition_kg()
+                burn["kg"] = round(burn["kg"] + self.ignition_kg(), 3)
+                mk = now.strftime("%Y-%m")
+                self.data["months"][mk] = round(self.data["months"].get(mk, 0) + self.ignition_kg(), 3)
             if error_code == 5 and last.get("error") != 5:
                 self._on_empty(now)
         self.data["last"] = {"t": now.timestamp(), "status": status, "power": power, "error": error_code,
@@ -188,14 +199,34 @@ class Consumables:
         for k in [k for k in self.data["burn"] if k < keep]:
             del self.data["burn"][k]
 
+    def ignition_kg(self) -> float:
+        v = self.data["pellets"].get("ignition_kg", {}).get("value")
+        return float(self.cfg["ignition_kg"] if v is None else v)
+
+    def _learn_level(self, observed_kg: float, weight: float, event: dict[str, Any]) -> None:
+        """A real consumption is known since the last full tank: learn kg per ignition, else the factor."""
+        pel = self.data["pellets"]
+        if not pel["full"] or observed_kg < self.cfg["tank_kg"] * 0.25 or pel["model_kg"] <= 0:
+            return
+        n = pel.get("ignitions", 0)
+        rate_kg = pel["model_kg"] * pel["factor"]["value"]
+        if n >= 3:
+            obs = min(1.0, max(0.0, (observed_kg - rate_kg) / n))
+            ik = pel.setdefault("ignition_kg", {"value": None, "n": 0.0})
+            prior = self.ignition_kg()
+            w = min(ik["n"] + FACTOR_PRIOR_WEIGHT, FACTOR_MAX_WEIGHT)
+            ik["value"] = (prior * w + obs * weight) / (w + weight)
+            ik["n"] += weight
+            event["ignition_kg"] = round(obs, 3)
+            event["ignitions"] = n
+        elif self._learn(observed_kg / pel["model_kg"], weight):
+            event["factor"] = round(observed_kg / pel["model_kg"], 3)
+
     def _on_empty(self, now: datetime) -> None:
         pel = self.data["pellets"]
-        event = {"at": now.timestamp(), "model_kg": _r(pel["model_kg"], 2),
+        event = {"at": now.timestamp(), "model_kg": _r(pel["model_kg"], 2), "ignitions": pel.get("ignitions", 0),
                  "hours_since_refill": _r((now.timestamp() - pel["refill_at"]) / 3600)}
-        if pel["full"] and pel["model_kg"] >= self.cfg["tank_kg"] * 0.4:
-            obs = self.cfg["tank_kg"] / pel["model_kg"]
-            if self._learn(obs, 1):
-                event["factor"] = round(obs, 3)
+        self._learn_level(self.cfg["tank_kg"], 1, event)
         pel["empties"] = [event, *pel["empties"]][:20]
         pel["kg_burned"] = self.cfg["tank_kg"]
         self._emit("pellets_empty", **event)
@@ -216,15 +247,14 @@ class Consumables:
         entry = {"at": now.timestamp(), "remaining_percent": remaining_percent,
                  "estimated_percent": round(self.kg_left() / tank * 100), "model_kg": _r(pel["model_kg"], 2),
                  "hours": _r(pel.get("hours", 0.0), 2), "after_full": pel["full"]}
+        entry["ignitions"] = pel.get("ignitions", 0)
         if remaining_percent is not None:
             if not 0 <= remaining_percent <= 100:
                 raise ValueError(f"Invalid level {remaining_percent}")
-            if pel["full"] and pel["model_kg"] >= tank * 0.25:
-                obs = tank * (1 - remaining_percent / 100) / pel["model_kg"]
-                if self._learn(obs, 0.5):
-                    entry["factor"] = round(obs, 3)
+            self._learn_level(tank * (1 - remaining_percent / 100), 0.5, entry)
         pel["refills"] = [entry, *pel["refills"]][:50]
-        pel.update(refill_at=now.timestamp(), kg_burned=0.0, model_kg=0.0, hours=0.0, full=True, low_notified=False)
+        pel.update(refill_at=now.timestamp(), kg_burned=0.0, model_kg=0.0, hours=0.0, ignitions=0, full=True,
+                   low_notified=False)
         self.data["daily"]["advised_at"] = None
         return entry
 
@@ -265,7 +295,8 @@ class Consumables:
         if last_service_hours is not None:
             self.data["maintenance"]["last_hours_total"] = int(last_service_hours)
 
-    def import_homey(self, now: datetime, homey: dict[str, Any], tank_kg: float | None = None) -> dict[str, Any]:
+    def import_homey(self, now: datetime, homey: dict[str, Any], full: bool | None = None,
+                     ignitions: int | None = None) -> dict[str, Any]:
         """Takes over the state learnt by the Homey app (settings key « consumables »)."""
         hp = homey.get("pellets") or {}
         pel = self.data["pellets"]
@@ -274,7 +305,9 @@ class Consumables:
         if "kgBurned" in hp:
             pel["kg_burned"] = float(hp["kgBurned"])
         pel["model_kg"] = float(hp.get("modelKg", pel["model_kg"]) or 0)
-        pel["full"] = bool(hp.get("full", pel["full"]))
+        pel["full"] = bool(hp.get("full", pel["full"])) if full is None else bool(full)
+        if ignitions is not None:
+            pel["ignitions"] = int(ignitions)
         if hp.get("refillAt"):
             pel["refill_at"] = float(hp["refillAt"]) / 1000
         mean_rate = rate_per_hour(2)
@@ -303,11 +336,12 @@ class Consumables:
         return {"kg_left": _r(self.kg_left()), "factor": round(pel["factor"]["value"], 3),
                 "refills": len(pel["refills"]), "cleaning_hours": _r(self.data["cleaning"]["hours"])}
 
-    def add_burn(self, hours: float, power: int = 2) -> None:
+    def add_burn(self, hours: float, power: int = 2, ignitions: int = 0) -> None:
         """Burning time the integration did not observe (e.g. while neither Homey nor HA read the stove)."""
         pel = self.data["pellets"]
         model = rate_per_hour(power) * hours
-        pel["kg_burned"] += model * pel["factor"]["value"]
+        pel["ignitions"] = pel.get("ignitions", 0) + ignitions
+        pel["kg_burned"] += model * pel["factor"]["value"] + ignitions * self.ignition_kg()
         pel["model_kg"] += model
         pel["hours"] = pel.get("hours", 0.0) + hours
         self.data["cleaning"]["hours"] += hours
@@ -463,6 +497,8 @@ class Consumables:
             "rate_now": _r(rate_now, 2), "hours_at_current_power": _r(left / rate_now) if rate_now else None,
             "kg_per_day": _r(daily), "empty_at": now + timedelta(hours=hours_left) if hours_left is not None and hours_left < 24 * 14 else None,
             "factor": round(pel["factor"]["value"], 3), "factor_samples": pel["factor"]["n"], "known": pel["full"],
+            "ignition_kg": round(self.ignition_kg(), 3), "ignition_kg_samples": pel.get("ignition_kg", {}).get("n", 0),
+            "ignitions_since_refill": pel.get("ignitions", 0),
             "refill_at": pel["refill_at"], "refills": pel["refills"][:5], "empties": pel["empties"][:5],
             "month_kg": _r(self.data["months"].get(mk, 0), 1),
             "month_cost": round(self.data["months"].get(mk, 0) / self.cfg["bag_kg"] * self.cfg["bag_price"], 2),
@@ -483,7 +519,9 @@ class Consumables:
         b = self.data["burn"].get(now.date().isoformat()) or {"minutes": {}, "ignitions": 0, "kg": 0.0}
         mins = b["minutes"]
         burning = sum(v for k, v in mins.items() if k in BURNING)
-        return {"burning_hours": round(burning / 60, 2), "ignitions": b["ignitions"], "kg": b["kg"],
+        return {"burning_hours": round(burning / 60, 2), "ignition_hours": round(mins.get("ignition", 0) / 60, 2),
+                "heating_hours": round((mins.get("heating", 0) + mins.get("eco", 0)) / 60, 2),
+                "ignitions": b["ignitions"], "kg": b["kg"],
                 "minutes": {k: round(v) for k, v in mins.items()}}
 
     def burn_month(self, now: datetime) -> dict[str, Any]:

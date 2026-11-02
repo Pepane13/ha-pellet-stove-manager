@@ -3,7 +3,7 @@
 Port of the Homey app **Pellet Stove Manager** (`com.pepane13.pelletstove` 0.9.4) to Home Assistant,
 for pellet stoves driven by a **Duepi EVO** board (Interstoves and other brands using myDPRemote).
 
-## Status: 0.3.0 (pellets, cleaning, maintenance, alarms)
+## Status: 0.3.1 (pellets, cleaning, maintenance, alarms)
 
 The external thermostat (Netatmo) drives the stove; the direct link brings the technical data, the
 burn time, the alarms, the alarm reset and the power level.
@@ -15,14 +15,17 @@ burn time, the alarms, the alarm reset and the power level.
 - Stove entities: status, alarm message (with advice), power level, flue gas / board temperatures,
   auger, exhaust, burn hours, hours since service, pressure switch; heating, alarm, connection.
 - **Pellets** (port of the Homey app): tank level estimated from the power levels actually used
-  (0.95 → 2.33 kg/h, Diego 9) × a factor learnt on empty tanks; level, autonomy, empty time, kg / €
+  (0.95 → 2.33 kg/h, Diego 9) × a factor, plus an extra load per ignition learnt from the real levels
+  (empty tank, level seen before refilling): short Netatmo cycles make ignitions ≈ 40 % of the burn time; level, autonomy, empty time, kg / €
   this month, month forecast. Refill advice at 21:00 (tank must last until 08:00), morning check when
   the house opens, reminder 45 min later, « tank low » held overnight, alert at closing time.
 - **Cleaning**: burning hours since the last cleaning; due after 3 tanks (3 × mean burning hours
   between two refills; 44 h until two refills are known), pre-alert at 80 %.
 - **Maintenance**: journal (installation, services), due 12 months after the last service or at
   1,200 h, reminder 30 days / 100 h before.
-- **Burn time**: minutes per stove state per day and month, ignitions per day.
+- **Burn time**: minutes per stove state per day and month, ignitions per day. The stove's own hour
+  counter only counts the heating phase (not ignitions): it stays the reference for the 1,200 h service
+  rule, not for pellets or cleaning.
 - **Alarms**: advice for each Duepi code (`alarms.py`, to check against the stove's manual). Reset
   from Home Assistant only for user-solvable alarms, with the stove off; never for severity 3.
   A second reset within 24 h suggests calling the technician.

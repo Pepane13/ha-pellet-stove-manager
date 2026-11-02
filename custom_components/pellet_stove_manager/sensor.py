@@ -109,7 +109,8 @@ CONSUMABLES: tuple[ConsumableSensorDescription, ...] = (
         key="pellets_left", native_unit_of_measurement=UnitOfMass.KILOGRAMS, device_class=SensorDeviceClass.WEIGHT,
         state_class=SensorStateClass.MEASUREMENT, icon="mdi:sack", value=_p("kg_left"),
         attrs=lambda m: {k: v for k, v in m.c.pellet_state(dt_util.now(), m.outdoor()).items()
-                         if k in ("factor", "factor_samples", "known", "rate_now", "kg_per_day", "refills", "empties")},
+                         if k in ("factor", "factor_samples", "known", "rate_now", "kg_per_day", "refills", "empties",
+                                  "ignition_kg", "ignition_kg_samples", "ignitions_since_refill")},
     ),
     ConsumableSensorDescription(key="pellets_percent", native_unit_of_measurement=PERCENTAGE, icon="mdi:gauge",
                                 state_class=SensorStateClass.MEASUREMENT, value=_p("percent")),

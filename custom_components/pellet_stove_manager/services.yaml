@@ -45,6 +45,15 @@ import_homey:
       required: true
       selector:
         object:
+    full:
+      selector:
+        boolean:
+    ignitions:
+      selector:
+        number: {min: 0, max: 500}
+    extra_ignitions:
+      selector:
+        number: {min: 0, max: 100}
     extra_burn_hours:
       selector:
         number: {min: 0, max: 100, step: 0.01, unit_of_measurement: "h"}
@@ -61,6 +70,9 @@ add_burn:
       required: true
       selector:
         number: {min: 0, max: 100, step: 0.01, unit_of_measurement: "h"}
+    ignitions:
+      selector:
+        number: {min: 0, max: 100}
     power:
       selector:
         number: {min: 1, max: 5}
