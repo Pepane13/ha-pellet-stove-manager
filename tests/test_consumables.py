@@ -136,3 +136,28 @@ def test_fixed_cleaning_threshold_and_weekend_slot():
     assert "cleaning_due" not in [k for k, _ in c.take_events()]
     c.tick(t(10, 0, d=7), outdoor=7)
     assert "cleaning_due" in [k for k, _ in c.take_events()]
+
+
+def test_maintenance_due_needs_two_readings_and_flag_released():
+    c = Consumables(None, None, t(1))
+    c.observe(t(1, 0, d=3), "off", 1, 0, 1739, 16)
+    c.take_events()
+    c.observe(t(1, 1, d=3), "off", 1, 0, None, 8448)  # corrupted frame: 8 448 h since the service
+    c.tick(t(1, 1, d=3), outdoor=7)  # same reading seen again by the clock tick
+    assert "maintenance_due" not in [k for k, _ in c.take_events()]
+    c.observe(t(1, 2, d=3), "off", 1, 0, 1739, 16)
+    assert c.data["maintenance"]["notified_due"] is False
+    assert c.maintenance_state(t(1, 2, d=3))["hours_left"] == 1184
+    # a real overrun (two distinct readings) still alerts once
+    c.observe(t(1, 3, d=3), "off", 1, 0, 2930, 1207)
+    c.observe(t(1, 4, d=3), "off", 1, 0, 2930, 1207)
+    c.observe(t(1, 5, d=3), "off", 1, 0, 2930, 1207)
+    assert [k for k, _ in c.take_events()].count("maintenance_due") == 1
+
+
+def test_stuck_due_flag_released_on_load():
+    data = Consumables(None, None, t(1)).data
+    data["maintenance"]["notified_due"] = True  # left by the false alert of 03/11/2026
+    c = Consumables(data, None, t(9, d=3))
+    c.observe(t(9, 0, d=3), "off", 1, 0, 1740, 17)
+    assert c.data["maintenance"]["notified_due"] is False and c.take_events() == []

@@ -418,9 +418,26 @@ class Consumables:
                 "journal": sorted(m["journal"], key=lambda e: e["date"], reverse=True)}
 
     def _check_maintenance(self, now: datetime) -> None:
+        """Alerts once per crossing. An hour-based « due » must hold on two distinct stove readings
+        (a corrupted counter must not raise it); flags are released when the state goes back to normal."""
         m = self.data["maintenance"]
         s = self.maintenance_state(now)
-        if s["due"] and not m["notified_due"]:
+        date_due = s["days_left"] <= 0
+        reading = (self.data["last"] or {}).get("t")
+        if s["due"] and not date_due:
+            seen = m.setdefault("due_readings", [])
+            if reading is not None and reading not in seen:
+                seen.append(reading)
+                del seen[:-2]
+            confirmed = len(seen) >= 2
+        else:
+            m["due_readings"] = []
+            confirmed = s["due"]
+        if not s["due"]:
+            m["notified_due"] = False
+        if not s["soon"]:
+            m["notified_soon"] = False
+        if confirmed and not m["notified_due"]:
             m["notified_due"] = True
             self._emit("maintenance_due", date=s["due_date"], days_left=s["days_left"], hours_left=s["hours_left"])
         elif s["soon"] and not s["due"] and not m["notified_soon"]:

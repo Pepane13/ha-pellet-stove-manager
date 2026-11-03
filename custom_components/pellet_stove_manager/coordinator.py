@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from datetime import timedelta
 from typing import Any
 
@@ -38,6 +39,7 @@ from .const import (
     UNAVAILABLE_AFTER,
 )
 from .alarms import advice_for
+from .counters import CounterGuard
 from .duepi.client import DesyncError, DuepiClient
 from .duepi.protocol import ERRORS, StoveError, is_ack
 from .duepi.simulator import SimulatedStove
@@ -113,6 +115,7 @@ class StoveCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.options = opts
         self.manager = None  # ConsumablesManager, created in async_start for connected modes
         self._alarm_reset_at: dict[int, float] = {}
+        self.counters = CounterGuard()
 
     # ------------------------------------------------------------------ lifecycle
     async def async_start(self) -> None:
@@ -221,7 +224,16 @@ class StoveCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         _LOGGER.debug("Error register changed to %s: waiting for a second reading", read.code)
         return previous
 
+    def _check_counters(self, s: dict[str, Any]) -> dict[str, Any]:
+        """Hold back implausible hour counters (see counters.CounterGuard)."""
+        out, rejected = self.counters.check(s, time.time())
+        for key, value, kept in rejected:
+            _LOGGER.warning("Implausible %s %s ignored (last accepted %s)", key, value, kept)
+            self._fire("stove_counter_rejected", {"counter": key, "value": value, "kept": kept})
+        return out
+
     def _apply(self, s: dict[str, Any]) -> dict[str, Any]:
+        s = self._check_counters(s)
         mirror = s.get("source") == "mirror"
         error = s["error"] if mirror else self._confirmed_error(None if "error" in s["missing"] else s.get("error"))
         alarm = error.code != 0
