@@ -1,7 +1,10 @@
 """Pellets, cleaning, maintenance and alarm notifications around the coordinator.
 
-- Persists the Consumables state (Home Assistant Store), feeds it every stove snapshot and a
-  one-minute clock tick, follows the « house opened » entity (morning / evening checks).
+- Persists the Consumables state (Home Assistant Store): written at once after every user action,
+  house open / close or emitted event, every 5 minutes when it changed, and when Home Assistant
+  stops (0.3.5: the former 30 s delayed write was pushed back by every snapshot and never ran).
+- Feeds it every stove snapshot and a one-minute clock tick, follows the « house opened » entity
+  (morning / evening checks).
 - Turns events into notifications (persistent notification + notify services), with action buttons
   « Rechargé », « Nettoyé », « Acquitter ». Notifications are held while the house is closed (night)
   and sent when it opens; severity-3 alarms are sent at once.
@@ -14,7 +17,7 @@ import logging
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any
 
-from homeassistant.const import STATE_ON
+from homeassistant.const import EVENT_HOMEASSISTANT_STOP, STATE_ON
 from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers.event import async_track_state_change_event, async_track_time_interval
 from homeassistant.helpers.storage import Store
@@ -38,6 +41,8 @@ if TYPE_CHECKING:
     from .coordinator import StoveCoordinator
 
 _LOGGER = logging.getLogger(__name__)
+
+SAVE_EVERY = timedelta(minutes=5)
 STORE_VERSION = 1
 
 ACTION_REFILLED = "PSM_REFILLED"
@@ -78,6 +83,8 @@ class ConsumablesManager:
         self.c: Consumables | None = None
         self._unsub: list = []
         self._held: list[tuple[str, str, str, list]] = []
+        self._dirty = False
+        self._unsub_stop = None
 
     # ------------------------------------------------------------------ lifecycle
     def _config(self) -> dict[str, Any]:
@@ -100,17 +107,39 @@ class ConsumablesManager:
         if house:
             self._unsub.append(async_track_state_change_event(self.hass, [house], self._on_house))
         self._unsub.append(self.hass.bus.async_listen("mobile_app_notification_action", self._on_action))
+        self._unsub.append(async_track_time_interval(self.hass, self._periodic_save, SAVE_EVERY))
+        self._unsub_stop = self.hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, self._on_ha_stop)
 
     async def async_stop(self) -> None:
         for u in self._unsub:
             u()
         self._unsub.clear()
+        if self._unsub_stop is not None:
+            self._unsub_stop()
+            self._unsub_stop = None
+        await self.async_save_now()
+
+    async def _on_ha_stop(self, _event: Event) -> None:
+        self._unsub_stop = None  # a fired listen_once listener must not be removed again
+        await self.async_save_now()
+
+    async def async_save_now(self) -> None:
         if self.c:
+            self._dirty = False
             await self.store.async_save(self.c.data)
 
-    def _save(self) -> None:
-        if self.c:
-            self.store.async_delay_save(lambda: self.c.data, 30)
+    @callback
+    def _periodic_save(self, _now: Any) -> None:
+        if self._dirty:
+            self.hass.async_create_task(self.async_save_now())
+
+    def _save(self, immediate: bool = False) -> None:
+        if not self.c:
+            return
+        if immediate:
+            self.hass.async_create_task(self.async_save_now())
+        else:
+            self._dirty = True
 
     # ------------------------------------------------------------------ inputs
     def outdoor(self) -> float | None:
@@ -150,11 +179,11 @@ class ConsumablesManager:
             return
         if new.state == STATE_ON:
             self.c.house_opened(dt_util.now(), self.outdoor())
-            self._flush()
+            self._flush(immediate=True)
             self._release_held()
         elif new.state == "off":
             self.c.house_closed(dt_util.now(), self.outdoor())
-            self._flush()
+            self._flush(immediate=True)
 
     # ------------------------------------------------------------------ user actions
     def refilled(self, remaining_percent: float | None = None, source: str = "bouton") -> None:
@@ -163,7 +192,7 @@ class ConsumablesManager:
         self._log(f"recharge enregistrée ({source}), niveau estimé avant {e['estimated_percent']} %"
                   + (f", vu {remaining_percent:.0f} %" if remaining_percent is not None else ""))
         self.coord._fire("pellets_refilled", {"source": source, **{k: v for k, v in e.items() if k != "at"}})
-        self._flush()
+        self._flush(immediate=True)
 
     def cleaned(self, source: str = "bouton") -> None:
         assert self.c
@@ -171,17 +200,17 @@ class ConsumablesManager:
         self.c.cleaned(dt_util.now())
         self._log(f"nettoyage enregistré ({source}) après {hours} h de combustion")
         self.coord._fire("cleaning_done", {"source": source, "hours": hours})
-        self._flush()
+        self._flush(immediate=True)
 
     def serviced(self, note: str = "", cost: float | None = None) -> None:
         assert self.c
         self.c.serviced(dt_util.now(), note, cost)
         self._log("entretien annuel enregistré")
         self.coord._fire("maintenance_done", {"note": note, "cost": cost})
-        self._flush()
+        self._flush(immediate=True)
 
     def update(self) -> None:
-        self._flush()
+        self._flush(immediate=True)
 
     @callback
     def _on_action(self, event: Event) -> None:
@@ -217,10 +246,11 @@ class ConsumablesManager:
 
     # ------------------------------------------------------------------ output
     @callback
-    def _flush(self) -> None:
+    def _flush(self, immediate: bool = False) -> None:
         if not self.c:
             return
-        for kind, data in self.c.take_events():
+        events = list(self.c.take_events())
+        for kind, data in events:
             self.coord._fire(kind, data)
             if kind in ("pellets_refill_not_needed",):
                 self._log(f"conseil du {data.get('moment')} : pas de recharge nécessaire "
@@ -231,7 +261,7 @@ class ConsumablesManager:
                 body = body.format(when=WHEN.get(data.get("moment"), ""), **{k: ("—" if v is None else v) for k, v in data.items()})
                 self._log(f"{title} — {body}")
                 self._notify(title, body, ACTIONS.get(kind, []))
-        self._save()
+        self._save(immediate=immediate or bool(events))
         self.coord.async_update_listeners()
 
     def _log(self, message: str) -> None:
